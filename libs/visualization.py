@@ -1,6 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import os.path
 import cv2
 from PIL import Image
@@ -50,6 +48,9 @@ class DisplayState:
 # display details such as bounding boxes in the image
 def dispaly_details(common_path, imgFolder, frame, dets, gts, trackers,
                     unmatched_trckr, unmatched_gts, mot_trackers):
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+
     # display image
     if DisplayState.display:
         img = Image.open('%s/img1/%06d.jpg' % (common_path, frame))
