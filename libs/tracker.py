@@ -69,7 +69,7 @@ def _update_matched_trackers(dets, kalman_trackers, unmatched_trks, occluded_trk
     return unmatched_trks_pos
 
 
-def _build_new_targets(unmatched_before_before, unmatched_before, unmatched, area_avg, kalman_trackers):
+def _build_new_targets(unmatched_before_before, unmatched_before, unmatched, area_avg, kalman_trackers, three_frame_certainty):
     if (len(unmatched_before_before) != 0) and (len(unmatched_before) != 0) and (len(unmatched) != 0):
         new_trackers, del_ind = association.find_new_trackers_2(unmatched, unmatched_before,
                                                                 unmatched_before_before, area_avg)
@@ -82,7 +82,7 @@ def _build_new_targets(unmatched_before_before, unmatched_before, unmatched, are
             del_ind = np.flip(del_ind, axis=0)
             for i, new_tracker in enumerate(new_trackers):
                 new_trk_certainty = unm[new_tracker[0], 4] + unmb[new_tracker[1], 4] + unmbb[new_tracker[2], 4]
-                if new_trk_certainty > 2:
+                if new_trk_certainty > three_frame_certainty:
                     trk = kalman_tracker.KalmanBoxTracker(unm[new_tracker[0], :], 1, unmb[new_tracker[1], :])
                     kalman_trackers.append(trk)
                     # remove matched detection from unmatched arrays
@@ -124,6 +124,8 @@ class Sort_OH(object):
         self.scene = scene
         self.conf_trgt = 0
         self.conf_objt = 0
+        self.conf_uncertainty = 0.6
+        self.conf_three_frame_certainty = .4
 
     def to_json(self):
         """
@@ -168,7 +170,7 @@ class Sort_OH(object):
         if self.frame_count <= self.min_hits:
             for i in unmatched_dets:
                 # Put condition on uncertainty
-                if dets[i, 4] > 0.6:
+                if dets[i, 4] > self.conf_uncertainty:
                     # put dets[i, :] as dummy data for last argument
                     trk = kalman_tracker.KalmanBoxTracker(dets[i, :], 0, dets[i, :])
                     self.trackers.append(trk)
@@ -179,7 +181,7 @@ class Sort_OH(object):
 
             # Build new targets
             _build_new_targets(self.unmatched_before_before, self.unmatched_before, self.unmatched,
-                               self.area_avg_array[len(self.area_avg_array) - 1], self.trackers)
+                               self.area_avg_array[len(self.area_avg_array) - 1], self.trackers, self.conf_three_frame_certainty)
             self.unmatched_before_before = self.unmatched_before
             self.unmatched_before = self.unmatched
 
