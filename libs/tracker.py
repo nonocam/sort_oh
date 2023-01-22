@@ -118,14 +118,16 @@ class Sort_OH(object):
         self.trackers = []
         self.area_avg_array = []
         self.frame_count = 0
-        self.unmatched_before_before = []
-        self.unmatched_before = []
+        self.unmatched_history = []
         self.unmatched = []
+        self.unmatched_before = []
+        self.unmatched_before_before = []
         self.scene = scene
         self.conf_trgt = 0
         self.conf_objt = 0
-        self.conf_uncertainty = 0.6
         self.conf_three_frame_certainty = .4
+        self.conf_iou_threshold = .3
+        self.conf_unmatched_history_size = 3
 
     def to_json(self):
         """
@@ -135,14 +137,12 @@ class Sort_OH(object):
             "area_avg_array": list(map(lambda x: x if np.isscalar(x) else x[0], self.area_avg_array)),
             "conf_objt": self.conf_objt,
             "conf_trgt": self.conf_trgt,
+            "conf_unmatched_history_size": self.conf_unmatched_history_size,
             "frame_count": self.frame_count,
             "max_age": self.max_age,
             "min_hits": self.min_hits,
             "scene": self.scene.tolist(),
             "trackers": list(map(lambda x: x.to_json(), self.trackers)),
-            "unmatched": list(map(lambda x: x.tolist(), self.unmatched)),
-            "unmatched_before": list(map(lambda x: x.tolist(), self.unmatched_before)),
-            "unmatched_before_before": list(map(lambda x: x.tolist(), self.unmatched_before_before)),
         }
 
     def update(self, dets, gts):
@@ -161,7 +161,7 @@ class Sort_OH(object):
 
         trks = _remove_outside_trackers(trks, self.trackers, self.scene)
 
-        matched, unmatched_dets, unmatched_trks, occluded_trks, unmatched_gts = association.associate_detections_to_trackers(self, dets, trks, gts, area_avg)
+        matched, unmatched_dets, unmatched_trks, occluded_trks, unmatched_gts = association.associate_detections_to_trackers(self, dets, trks, gts, area_avg, self.conf_iou_threshold)
 
         # update matched trackers with assigned detections
         unmatched_trks_pos = _update_matched_trackers(dets, self.trackers, unmatched_trks, occluded_trks, matched, trks)
@@ -170,20 +170,36 @@ class Sort_OH(object):
         if self.frame_count <= self.min_hits:
             for i in unmatched_dets:
                 # Put condition on uncertainty
-                if dets[i, 4] > self.conf_uncertainty:
+                if dets[i, 4] > 0.6:
                     # put dets[i, :] as dummy data for last argument
                     trk = kalman_tracker.KalmanBoxTracker(dets[i, :], 0, dets[i, :])
                     self.trackers.append(trk)
         else:
+            # create current unmatched list
             self.unmatched = []
             for i in unmatched_dets:
                 self.unmatched.append(dets[i, :])
 
+            # find previous unmatched in history
+            unmatched_available = list(filter(lambda check: len(check), self.unmatched_history))
+            # take last two
+            unmatched_available = unmatched_available[-2:]
+            self.unmatched_before_before = []
+            self.unmatched_before = []
+            if len(unmatched_available) == 1:
+                self.unmatched_before = unmatched_available[0]
+            elif len(unmatched_available) == 2:
+                self.unmatched_before_before, self.unmatched_before = unmatched_available
+
+            if len(unmatched_available) == 2 and ((self.unmatched_history[len(self.unmatched_history) - 1] is not self.unmatched_before) or (self.unmatched_history[len(self.unmatched_history) - 2] is not self.unmatched_before_before)):
+                print('recovered')
+
+            self.unmatched_history.append(self.unmatched)
+            self.unmatched_history = self.unmatched_history[-self.conf_unmatched_history_size:]
+
             # Build new targets
             _build_new_targets(self.unmatched_before_before, self.unmatched_before, self.unmatched,
                                self.area_avg_array[len(self.area_avg_array) - 1], self.trackers, self.conf_three_frame_certainty)
-            self.unmatched_before_before = self.unmatched_before
-            self.unmatched_before = self.unmatched
 
         # get position of unmatched ground truths
         unmatched_gts_pos = []
