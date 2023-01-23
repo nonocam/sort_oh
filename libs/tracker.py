@@ -191,9 +191,6 @@ class Sort_OH(object):
             elif len(unmatched_available) == 2:
                 self.unmatched_before_before, self.unmatched_before = unmatched_available
 
-            if len(unmatched_available) == 2 and ((self.unmatched_history[len(self.unmatched_history) - 1] is not self.unmatched_before) or (self.unmatched_history[len(self.unmatched_history) - 2] is not self.unmatched_before_before)):
-                print('recovered')
-
             self.unmatched_history.append(self.unmatched)
             self.unmatched_history = self.unmatched_history[-self.conf_unmatched_history_size:]
 
