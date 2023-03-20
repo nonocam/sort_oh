@@ -1,6 +1,5 @@
 import numpy as np
 import os.path
-import cv2
 from PIL import Image
 from . import convert
 
@@ -129,6 +128,7 @@ def generate_video(image_folder, video_name, fps):
                   if img.endswith(".jpg") or
                   img.endswith(".jpeg") or
                   img.endswith(".png")]
+        import cv2
         frame = cv2.imread(os.path.join(image_folder, images[0]))
 
         # setting the frame width, height width according to the width & height of first image
