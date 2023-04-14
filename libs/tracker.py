@@ -116,7 +116,6 @@ class Sort_OH(object):
         self.max_age = max_age
         self.min_hits = min_hits
         self.trackers = []
-        self.area_avg_array = []
         self.frame_count = 0
         self.unmatched_history = []
         self.unmatched = []
@@ -134,7 +133,6 @@ class Sort_OH(object):
         Returns a dict object that can be used to serialize this a JSON
         """
         return {
-            "area_avg_array": list(map(lambda x: x if np.isscalar(x) else x[0], self.area_avg_array)),
             "conf_objt": self.conf_objt,
             "conf_trgt": self.conf_trgt,
             "conf_unmatched_history_size": self.conf_unmatched_history_size,
@@ -157,7 +155,6 @@ class Sort_OH(object):
         self.frame_count += 1
 
         trks, area_avg = _init_area_and_trackers(self.trackers)
-        self.area_avg_array.append(area_avg)
 
         trks = _remove_outside_trackers(trks, self.trackers, self.scene)
 
@@ -196,7 +193,7 @@ class Sort_OH(object):
 
             # Build new targets
             _build_new_targets(self.unmatched_before_before, self.unmatched_before, self.unmatched,
-                               self.area_avg_array[len(self.area_avg_array) - 1], self.trackers, self.conf_three_frame_certainty)
+                               area_avg, self.trackers, self.conf_three_frame_certainty)
 
         # get position of unmatched ground truths
         unmatched_gts_pos = []
