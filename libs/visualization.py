@@ -1,8 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import os.path
-import cv2
 from PIL import Image
 from . import convert
 
@@ -50,6 +47,9 @@ class DisplayState:
 # display details such as bounding boxes in the image
 def dispaly_details(common_path, imgFolder, frame, dets, gts, trackers,
                     unmatched_trckr, unmatched_gts, mot_trackers):
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+
     # display image
     if DisplayState.display:
         img = Image.open('%s/img1/%06d.jpg' % (common_path, frame))
@@ -128,6 +128,7 @@ def generate_video(image_folder, video_name, fps):
                   if img.endswith(".jpg") or
                   img.endswith(".jpeg") or
                   img.endswith(".png")]
+        import cv2
         frame = cv2.imread(os.path.join(image_folder, images[0]))
 
         # setting the frame width, height width according to the width & height of first image

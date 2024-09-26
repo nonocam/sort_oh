@@ -155,8 +155,7 @@ def _filter_low_iou_low_area(matched_indices_ext, matched_indices, iou_matrix_ex
     return matches_ext_com, del_ind
 
 
-def associate_detections_to_trackers(mot_tracker, detections, trackers, groundtruths, average_area,
-                                     iou_threshold=0.3, ):
+def associate_detections_to_trackers(mot_tracker, detections, trackers, groundtruths, average_area, iou_threshold):
     """
     Assigns detections to tracked object (both represented as bounding boxes)
     Returns 5 lists of matches, unmatched_detections, unmatched_trackers, occluded_trackers and unmatched ground truths

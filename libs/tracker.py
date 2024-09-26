@@ -69,7 +69,7 @@ def _update_matched_trackers(dets, kalman_trackers, unmatched_trks, occluded_trk
     return unmatched_trks_pos
 
 
-def _build_new_targets(unmatched_before_before, unmatched_before, unmatched, area_avg, kalman_trackers):
+def _build_new_targets(unmatched_before_before, unmatched_before, unmatched, area_avg, kalman_trackers, three_frame_certainty):
     if (len(unmatched_before_before) != 0) and (len(unmatched_before) != 0) and (len(unmatched) != 0):
         new_trackers, del_ind = association.find_new_trackers_2(unmatched, unmatched_before,
                                                                 unmatched_before_before, area_avg)
@@ -82,7 +82,7 @@ def _build_new_targets(unmatched_before_before, unmatched_before, unmatched, are
             del_ind = np.flip(del_ind, axis=0)
             for i, new_tracker in enumerate(new_trackers):
                 new_trk_certainty = unm[new_tracker[0], 4] + unmb[new_tracker[1], 4] + unmbb[new_tracker[2], 4]
-                if new_trk_certainty > 2:
+                if new_trk_certainty > three_frame_certainty:
                     trk = kalman_tracker.KalmanBoxTracker(unm[new_tracker[0], :], 1, unmb[new_tracker[1], :])
                     kalman_trackers.append(trk)
                     # remove matched detection from unmatched arrays
@@ -116,31 +116,31 @@ class Sort_OH(object):
         self.max_age = max_age
         self.min_hits = min_hits
         self.trackers = []
-        self.area_avg_array = []
         self.frame_count = 0
-        self.unmatched_before_before = []
-        self.unmatched_before = []
+        self.unmatched_history = []
         self.unmatched = []
+        self.unmatched_before = []
+        self.unmatched_before_before = []
         self.scene = scene
         self.conf_trgt = 0
         self.conf_objt = 0
+        self.conf_three_frame_certainty = .4
+        self.conf_iou_threshold = .3
+        self.conf_unmatched_history_size = 3
 
     def to_json(self):
         """
         Returns a dict object that can be used to serialize this a JSON
         """
         return {
-            "area_avg_array": list(map(lambda x: x if np.isscalar(x) else x[0], self.area_avg_array)),
             "conf_objt": self.conf_objt,
             "conf_trgt": self.conf_trgt,
+            "conf_unmatched_history_size": self.conf_unmatched_history_size,
             "frame_count": self.frame_count,
             "max_age": self.max_age,
             "min_hits": self.min_hits,
             "scene": self.scene.tolist(),
             "trackers": list(map(lambda x: x.to_json(), self.trackers)),
-            "unmatched": list(map(lambda x: x.tolist(), self.unmatched)),
-            "unmatched_before": list(map(lambda x: x.tolist(), self.unmatched_before)),
-            "unmatched_before_before": list(map(lambda x: x.tolist(), self.unmatched_before_before)),
         }
 
     def update(self, dets, gts):
@@ -155,11 +155,10 @@ class Sort_OH(object):
         self.frame_count += 1
 
         trks, area_avg = _init_area_and_trackers(self.trackers)
-        self.area_avg_array.append(area_avg)
 
         trks = _remove_outside_trackers(trks, self.trackers, self.scene)
 
-        matched, unmatched_dets, unmatched_trks, occluded_trks, unmatched_gts = association.associate_detections_to_trackers(self, dets, trks, gts, area_avg)
+        matched, unmatched_dets, unmatched_trks, occluded_trks, unmatched_gts = association.associate_detections_to_trackers(self, dets, trks, gts, area_avg, self.conf_iou_threshold)
 
         # update matched trackers with assigned detections
         unmatched_trks_pos = _update_matched_trackers(dets, self.trackers, unmatched_trks, occluded_trks, matched, trks)
@@ -173,15 +172,28 @@ class Sort_OH(object):
                     trk = kalman_tracker.KalmanBoxTracker(dets[i, :], 0, dets[i, :])
                     self.trackers.append(trk)
         else:
+            # create current unmatched list
             self.unmatched = []
             for i in unmatched_dets:
                 self.unmatched.append(dets[i, :])
 
+            # find previous unmatched in history
+            unmatched_available = list(filter(lambda check: len(check), self.unmatched_history))
+            # take last two
+            unmatched_available = unmatched_available[-2:]
+            self.unmatched_before_before = []
+            self.unmatched_before = []
+            if len(unmatched_available) == 1:
+                self.unmatched_before = unmatched_available[0]
+            elif len(unmatched_available) == 2:
+                self.unmatched_before_before, self.unmatched_before = unmatched_available
+
+            self.unmatched_history.append(self.unmatched)
+            self.unmatched_history = self.unmatched_history[-self.conf_unmatched_history_size:]
+
             # Build new targets
             _build_new_targets(self.unmatched_before_before, self.unmatched_before, self.unmatched,
-                               self.area_avg_array[len(self.area_avg_array) - 1], self.trackers)
-            self.unmatched_before_before = self.unmatched_before
-            self.unmatched_before = self.unmatched
+                               area_avg, self.trackers, self.conf_three_frame_certainty)
 
         # get position of unmatched ground truths
         unmatched_gts_pos = []
